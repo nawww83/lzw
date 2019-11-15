@@ -117,11 +117,15 @@ void Widget::readSettings() {
 void Widget::on_btnSelectFile_clicked() {
     QString str;
     QDir dir(path);
-    str = QFileDialog::getOpenFileName(nullptr, "", dir.path(), "*.cutf; *.lzw");
+    str = QFileDialog::getOpenFileName(nullptr, "", dir.path(), "*.bin *.binz");
     ui->lineEdit->setText(str);
-    bool archive = str.endsWith(".lzw", Qt::CaseInsensitive);
-    ui->btnDeCompress->setEnabled(archive);
-    ui->btnCompress->setEnabled(!archive);
+    if (str.contains(".binz")) {
+        ui->btnDeCompress->setEnabled(true);
+        ui->btnCompress->setEnabled(false);
+    } else if (str.contains(".bin")) {
+        ui->btnDeCompress->setEnabled(false);
+        ui->btnCompress->setEnabled(true);
+    }
 }
 
 void Widget::on_btnTest_clicked() {
@@ -172,7 +176,7 @@ void Widget::on_btnCompress_clicked() {
     QFile in_file;
     QFile out_file;    
     ui->textBrowser->clear();
-    auto Rd = IN_N; // Размер линии данных
+    auto Rd = IN_N;
 
     if (ui->lineEdit->text().isEmpty()) return;
     dir.setPath(ui->lineEdit->text());
@@ -182,7 +186,7 @@ void Widget::on_btnCompress_clicked() {
 
     if (WRITE) {
         QString abspath = dir.absolutePath();
-        abspath.replace(QString(".cutf"),QString(".lzw"),Qt::CaseInsensitive);
+        abspath.replace(QString(".bin"), QString(".tmp"), Qt::CaseInsensitive);
         out_file.setFileName(abspath);
         out_file.open(QIODevice::WriteOnly);
     }
@@ -193,6 +197,7 @@ void Widget::on_btnCompress_clicked() {
     ui->pbRun->setValue(0);
 
     auto count_line = in_file.size() / Rd;
+    auto res_count_line = in_file.size() % Rd;
     if (count_line < 1) {
         Rd = in_file.size();
         count_line = 1;
@@ -213,7 +218,9 @@ void Widget::on_btnCompress_clicked() {
     int Writed = 0;
 
     fillByteArrayFromHeader(WrB, pLZ);
-    out_file.write(WrB, SZ_HEADER);
+    if (WRITE)
+        out_file.write(WrB, SZ_HEADER);
+
     Writed += SZ_HEADER;
 
     QTime tm;
@@ -234,17 +241,27 @@ void Widget::on_btnCompress_clicked() {
         ratio[i] =  1. * Rd / Wr;
         ui->pbRun->setValue((i + 1) * 100 / count_line);
     }
-    in_file.close();    
+    if (res_count_line > 0) {
+        in_file.read(reinterpret_cast<char *>(in), res_count_line);
+        Readed += res_count_line;
 
-    if (WRITE)
-        out_file.close();
+        int Wr = 0;
+        Wr = lzmpw.compress(in, static_cast<size_t>(res_count_line), out);
+
+        if (WRITE)
+            out_file.write(reinterpret_cast<char*>(out), Wr);
+
+        Writed += Wr;
+    }
 
     if (WRITE) {
-        in_file.setFileName(QString("ratioLZW.dat"));
-        in_file.open(QIODevice::WriteOnly);
-        in_file.write(reinterpret_cast<char *>(ratio), count_line * sizeof(ratio[0]));
+        in_file.remove();
+        auto fn = out_file.fileName();
+        auto fn_new = fn.replace(QString(".tmp"), QString(".binz"), Qt::CaseInsensitive);
+        out_file.rename(fn_new);
+        out_file.close();
+    } else
         in_file.close();
-    }
 
     ui->textBrowser->append(QString::fromUtf8("Time elapsed %1 ms").arg(1. * tm.elapsed()));
     ui->textBrowser->append(QString::fromUtf8("In %1 bytes").arg(Readed));
@@ -271,6 +288,8 @@ void Widget::on_btnCompress_clicked() {
     ui->textBrowser->append(QString::fromUtf8("SKO R is %1").arg(sko_ratio));
     ui->textBrowser->append(QString::fromUtf8("Min R; Max R is %1; %2").arg(min_ratio).arg(max_ratio));
 
+    ui->btnCompress->setEnabled(false);
+
     delete [] ratio;
 }
 
@@ -289,7 +308,7 @@ void Widget::on_btnDeCompress_clicked() {
         return;
 
     QString abspath = dir.absolutePath();
-    abspath.replace(QString(".lzw"), QString(".dlzw"), Qt::CaseInsensitive);
+    abspath.replace(QString(".binz"), QString(".tmp"), Qt::CaseInsensitive);
     out_file.setFileName(abspath);
 
     if (WRITE)
@@ -339,13 +358,20 @@ void Widget::on_btnDeCompress_clicked() {
         ui->pbRun->setValue( static_cast<int>( in_file.pos() / in_file.size() ) * 100);
     }
 
-    in_file.close();
-    if (WRITE)
+    if (WRITE) {
+        in_file.remove();
+        auto fn = out_file.fileName();
+        auto fn_new = fn.replace(QString(".tmp"), QString(".bin"), Qt::CaseInsensitive);
+        out_file.rename(fn_new);
         out_file.close();
+    } else
+        in_file.close();
 
     ui->textBrowser->append(QString::fromUtf8("Time elapsed %1 ms").arg(1. * tm.elapsed()));
     ui->textBrowser->append(QString::fromUtf8("In %1 bytes").arg(Readed));
     ui->textBrowser->append(QString::fromUtf8("Out %1 bytes").arg(Writed));
+
+    ui->btnDeCompress->setEnabled(false);
 }
 
 void Widget::on_spinBoxNTable_valueChanged(int arg1) {
