@@ -11,8 +11,8 @@ namespace Internal {
 class LzwPrivate
 {
 public:
-    LzwPrivate(const int nt, const int ncode);
-    int compress(uchar *in, const int Ns, uchar *out);
+    LzwPrivate(size_t nt, size_t ncode);
+    int compress(uchar *in, size_t Ns, uchar *out);
     int decompress(uchar *in, uchar *out);
 
     paramLZ getParamLZ();
@@ -25,7 +25,7 @@ private:
         END_CODE
     };
 
-    int getSizeCodeBuff(const int ncode);
+    size_t getSizeCodeBuff(size_t ncode) const;
 
     void copyNChars(uchar *Wr, const uchar *Rd, const int n)
     {
@@ -33,31 +33,31 @@ private:
             Wr[i]=Rd[i];
     }
 
-    void copyNCharsWithZeros(uchar *Wr, uchar *Rd, const int n)
+    void copyNCharsWithZeros(uchar *Wr, uchar *Rd, size_t n)
     {
-        for (int i=0;i<n;++i) {
-            Wr[i]=Rd[i];
-            Rd[i]=0;
+        for (size_t i=0; i<n; ++i) {
+            Wr[i] = Rd[i];
+            Rd[i] = 0;
         }
     }
 
     void flushBuffer(uchar *v);
     void writeToBuffer(const uchar *v);
-    void writeCode(uchar *v, const int code);
-    void readCode(const uchar *v, int& code);
+    void writeCode(uchar *v, const size_t code);
+    void readCode(const uchar *v, size_t &code);
 
-    int N_TABLE;
-    int N_CODE;
+    size_t N_TABLE;
+    size_t N_CODE;
 
     int fill_bit;
     int readed_bit;
     bool buffer_need_flush;
     bool buffer_is_old;
 
-    int size_code_buff;
-    int size_code_buff_bit;
+    size_t size_code_buff;
+    size_t size_code_buff_bit;
 
-    int wr_bytes;    
+    int wr_bytes;
     int rd_bytes;
 
     uchar code_buff[hhss::MAX_CODE_BIT*8];

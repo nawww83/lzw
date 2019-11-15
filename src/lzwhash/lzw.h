@@ -13,9 +13,9 @@ class LzwPrivate;
 class LZW_API Lzw
 {
 public:
-    Lzw(const int nt, const int ncode);
+    Lzw(size_t nt, size_t ncode);
     ~Lzw();
-    int compress(unsigned char *in, const int Ns, unsigned char *out);
+    int compress(unsigned char *in, size_t Ns, unsigned char *out);
     int decompress(unsigned char *in, unsigned char *out);
 
     paramLZ getParamLZ();

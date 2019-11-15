@@ -7,12 +7,11 @@
 
 class QFile;
 
-const int IN_N = 4096;
-const int SZ_HEADER = 16;
-const int SZ_NBLOCK = 4;
+constexpr qint64 IN_N = 4096;
+constexpr qint64 SZ_HEADER = 16;
+constexpr qint64 SZ_NBLOCK = 4;
 
-enum
-{
+enum {
     RekaLine = 1,
     RandomLine = 2,
     RepeatLine = 3
@@ -28,14 +27,14 @@ class Widget : public QWidget
     Q_OBJECT
     
 public:
-    explicit Widget(QWidget *parent = 0);
+    explicit Widget(QWidget *parent = nullptr);
     ~Widget();
 
-    int fillVector(uchar *u, const int n);
-    void randomByteVector(const int n, uchar *u);
-    void repeatByteVector(const int n, uchar *u, uchar repeat);
-    int typeRekaByteVector(uchar *u);
-    void copyByteVectorToString(const int n, const uchar *u, QString &str);
+    qint64 fillVector(uchar *u, qint64 n);
+    void randomByteVector(qint64 n, uchar *u);
+    void repeatByteVector(qint64 n, uchar *u, uchar repeat);
+    qint64 readRekaVector(uchar *u, qint64 n);
+    void copyByteVectorToString(qint64 n, const uchar *u, QString &str);
     void getHeader(QFile &f, llzz::paramLZ &plz);
     void fillByteArrayFromHeader(char *vb, const llzz::paramLZ &plz);
 
@@ -63,7 +62,7 @@ private:
 
     QString str;
     QString path;
-    float *ratio;    
+    double *ratio;
 
     int prevNT, prevNW, prevNB;
 };

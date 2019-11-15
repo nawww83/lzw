@@ -2,7 +2,7 @@ include(src.pri)
 
 TEMPLATE = subdirs
 
-CONFIG += ordered
+CONFIG += ordered с++11
 
 SUBDIRS = lzwhash \
         lzwssh \

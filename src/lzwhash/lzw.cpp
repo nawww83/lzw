@@ -5,7 +5,7 @@
 using namespace llzz;
 using namespace llzz::Internal;
 
-LzwPrivate::LzwPrivate(const int nt, const int ncode)
+LzwPrivate::LzwPrivate(size_t nt, size_t ncode)
     : N_TABLE(nt)
     , N_CODE(ncode)
     , fill_bit(0)
@@ -18,20 +18,20 @@ LzwPrivate::LzwPrivate(const int nt, const int ncode)
     N_TABLE  = par_hash.ntable;
 
     size_code_buff = getSizeCodeBuff(N_CODE);
-    size_code_buff_bit = size_code_buff*8;
+    size_code_buff_bit = size_code_buff * 8;
     memset(code_buff, 0, size_code_buff);
 }
 
 // OUT COMPRESS: (WRBLOCKS, DATA)
 // SIZE IN BYTES: (4, SIZE_CODE_BUFF*WRBLOCKS)
-int LzwPrivate::compress(uchar *in, const int Ns, uchar *out)
+int LzwPrivate::compress(uchar *in, size_t Ns, uchar *out)
 {    
     wr_bytes = N_SKEEP; // N Bytes for WRBLOCKS
     writeCode(&out[wr_bytes], CLEAR_CODE);
     hashtable.erase(hhss::CODE);
-    int codeThis, codePrevStr = hhss::EMPTY_CODE;
+    size_t codeThis, codePrevStr = hhss::EMPTY_CODE;
     /////////////////////////////
-    for (int i=0;i<Ns;++i) {
+    for (size_t i=0; i<Ns; ++i) {
         const uchar symbol = in[i];        
         if (hashtable.findCode(codePrevStr, symbol, codeThis)) {
             codePrevStr = codeThis;
@@ -50,11 +50,11 @@ int LzwPrivate::compress(uchar *in, const int Ns, uchar *out)
     writeCode(&out[wr_bytes], END_CODE);
     ///////////////////////////////////////
     // WRBLOCKS    
-    int wrblocks = (wr_bytes - N_SKEEP) / size_code_buff;
-    out[0]=wrblocks&0xff;
-    out[1]=(wrblocks>>8)&0xff;
-    out[2]=(wrblocks>>16)&0xff;
-	out[3]=(wrblocks>>24)&0xff;
+    int wrblocks = (wr_bytes - N_SKEEP) / static_cast<int>(size_code_buff);
+    out[0] = wrblocks & 0xff;
+    out[1] = (wrblocks >> 8) & 0xff;
+    out[2] = (wrblocks >> 16) & 0xff;
+    out[3] = (wrblocks >> 24) & 0xff;
 	//
     return wr_bytes;
 }
@@ -65,7 +65,7 @@ int LzwPrivate::decompress(uchar *in, uchar *out)
     wr_bytes   = 0;
     rd_bytes   = N_SKEEP;
     buffer_is_old = true;
-    int codeThis, codePrevStr = hhss::EMPTY_CODE;
+    size_t codeThis, codePrevStr = hhss::EMPTY_CODE;
     readCode(&in[rd_bytes], codeThis);
     hashtable.erase(hhss::DECODE);
     readCode(&in[rd_bytes], codeThis);
@@ -94,16 +94,14 @@ int LzwPrivate::decompress(uchar *in, uchar *out)
     return wr_bytes;
 }
 
-int LzwPrivate::getSizeCodeBuff(const int ncode)
-{
-    int sz=8;
+size_t LzwPrivate::getSizeCodeBuff(size_t ncode) const {
+    size_t sz = 8;
     while (sz % ncode)
-        sz+=8;
-    return sz/8;
+        sz += 8;
+    return sz / 8;
 }
 
-paramLZ LzwPrivate::getParamLZ()
-{
+paramLZ LzwPrivate::getParamLZ() {
     paramLZ p = {p.ntable = N_TABLE, p.nsymbols       = 0,
                  p.ncode  = N_CODE,  p.size_code_buff = size_code_buff};
     return p;
@@ -123,7 +121,7 @@ void LzwPrivate::writeToBuffer(const uchar *v)
     rd_bytes  += size_code_buff;
 }
 
-void LzwPrivate::writeCode(uchar *v, const int code)
+void LzwPrivate::writeCode(uchar *v, const size_t code)
 {
     const int index_begin = (fill_bit>>3); //  integer div 8
     const int index_end   = ((fill_bit + N_CODE - 1)>>3);
@@ -149,56 +147,51 @@ void LzwPrivate::writeCode(uchar *v, const int code)
         flushBuffer(v);
 }
 
-void LzwPrivate::readCode(const uchar *v, int &code)
+void LzwPrivate::readCode(const uchar *v, size_t &code)
 {
     if (buffer_is_old)
         writeToBuffer(v);
 
-    const int index_begin = (readed_bit>>3); //  integer div 8
-    const int index_end   = ((readed_bit + N_CODE - 1)>>3);
-    const int defect_begin = readed_bit & 7; // integer % 8
-    const int shift_begin  = N_CODE - (8 - defect_begin);
-    const int defect_end   = (readed_bit + N_CODE) & 7;
-    const int shift_end    = (8 - defect_end) & 7; // always > 0
+    int index_begin = (readed_bit >> 3); //  integer div 8
+    int index_end   = ((readed_bit + static_cast<int>(N_CODE) - 1) >> 3);
+    int defect_begin = readed_bit & 7; // integer % 8
+    int shift_begin  = static_cast<int>(N_CODE) - (8 - defect_begin);
+    int defect_end   = (readed_bit + static_cast<int>(N_CODE)) & 7;
+    int shift_end    = (8 - defect_end) & 7; // always > 0
 
     // zeros left defect_begin bits from code_buff[...] byte.
     const uchar tmp = (( 1 << (8 - defect_begin) ) - 1) & code_buff[index_begin];
-    code = tmp << shift_begin;
+    code = static_cast<size_t>(tmp) << shift_begin;
 
     int shift = (shift_begin > 0) ? shift_begin : -shift_begin;
-    for (int i=index_begin+1;i<index_end;++i)
-        code += (code_buff[i] << (shift -= 8));
+    for (int i=index_begin + 1; i<index_end; ++i)
+        code += static_cast<size_t>( ( static_cast<int>(code_buff[i]) << (shift -= 8)) );
 
     if (index_end ^ index_begin)
         code += (code_buff[index_end] >> shift_end);
 
     readed_bit += N_CODE;
-    buffer_is_old = !(readed_bit ^ size_code_buff_bit);
+    buffer_is_old = !( static_cast<size_t>(readed_bit) ^ size_code_buff_bit);
 }
 
 
-Lzw::Lzw(const int nt, const int ncode)
+Lzw::Lzw(size_t nt, size_t ncode)
     : pLZW(new LzwPrivate(nt, ncode))
-{
-}
+{}
 
-Lzw::~Lzw()
-{
+Lzw::~Lzw() {
     if (pLZW)
         delete pLZW;
 }
 
-int Lzw::compress(unsigned char *in, const int Ns, unsigned char *out)
-{
+int Lzw::compress(unsigned char *in, size_t Ns, unsigned char *out) {
     return pLZW->compress(in, Ns, out);
 }
 
-int Lzw::decompress(unsigned char *in, unsigned char *out)
-{
+int Lzw::decompress(unsigned char *in, unsigned char *out) {
     return pLZW->decompress(in, out);
 }
 
-paramLZ Lzw::getParamLZ()
-{
+paramLZ Lzw::getParamLZ() {
     return pLZW->getParamLZ();
 }

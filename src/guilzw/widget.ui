@@ -17,7 +17,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>Lempel-Ziva (hash-table optimize)</string>
+   <string>Lempel-Ziv-Welch tester</string>
   </property>
   <layout class="QGridLayout" name="gridLayout_2">
    <item row="4" column="3">
@@ -26,7 +26,7 @@
       <bool>false</bool>
      </property>
      <property name="text">
-      <string>Расжать</string>
+      <string>Распаковать</string>
      </property>
     </widget>
    </item>
@@ -93,7 +93,7 @@
       <item row="2" column="2">
        <widget class="QCheckBox" name="checkBoxAutoNBits">
         <property name="text">
-         <string>Авто бит</string>
+         <string>Авто</string>
         </property>
         <property name="checked">
          <bool>true</bool>
@@ -184,13 +184,13 @@
       <item row="0" column="0" colspan="2">
        <widget class="QSpinBox" name="spinBox">
         <property name="suffix">
-         <string> раз(а)</string>
+         <string> раз</string>
         </property>
         <property name="prefix">
-         <string>Зациклить компрессию </string>
+         <string>Повторить </string>
         </property>
         <property name="minimum">
-         <number>0</number>
+         <number>1</number>
         </property>
         <property name="maximum">
          <number>1000000</number>
@@ -199,14 +199,14 @@
          <number>100</number>
         </property>
         <property name="value">
-         <number>0</number>
+         <number>1</number>
         </property>
        </widget>
       </item>
       <item row="1" column="0">
        <widget class="QRadioButton" name="rbTypeReka">
         <property name="text">
-         <string>Reka line</string>
+         <string>Строка РЛС &quot;Река&quot;</string>
         </property>
         <property name="checked">
          <bool>true</bool>
@@ -219,7 +219,7 @@
       <item row="4" column="0">
        <widget class="QRadioButton" name="rbRepeat">
         <property name="text">
-         <string>Repeat value</string>
+         <string>Повтор случайного числа</string>
         </property>
         <attribute name="buttonGroup">
          <string notr="true">buttonGroup</string>
@@ -229,7 +229,7 @@
       <item row="1" column="1">
        <widget class="QRadioButton" name="rbRandom">
         <property name="text">
-         <string>Random</string>
+         <string>Случайные данные</string>
         </property>
         <attribute name="buttonGroup">
          <string notr="true">buttonGroup</string>
