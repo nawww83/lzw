@@ -43,21 +43,19 @@ struct FileHeader {
     float r_discret;
     //    uint16 - количество точек
     unsigned short r_numPoint;
-};
+} __attribute__((packed));
 
 ///////////////////
 int read_radar_header(const string& file, FileHeader& fh);
 string dataType(int type);
-string compress(const string& file, int header_size, float &ratio);
-string decompress(const string& file, int header_size);
+string compress(const string& file, size_t header_size, double &ratio);
+string decompress(const string& file, size_t header_size);
 ///////////////////
 
-const size_t LEN_4K = 4096;
 const size_t LEN_8K = 8192;
 const size_t LEN_16K = 16384;
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
 //    cout << "Arg count " << argc << endl;
 
     cout << "***********************************" << endl;
@@ -127,26 +125,26 @@ int main(int argc, char* argv[])
         }
         if (!isDecompress) {
             cout << " Compressing file ... " << endl;
-            float ratio;
+            double ratio;
             long t1 = clock();
-            string _s = compress(file, result, ratio);
+            string _s = compress(file, static_cast<size_t>(result), ratio);
             long t2 = clock();
             if (!_s.empty())
                 cout << "  compressed file is " << _s << "; ratio is " << ratio << endl;
             else
                 cout << "  compress error in file " << file << endl;
-            cout << "    compress time is " << float(t2-t1)/CLOCKS_PER_SEC << " s" << endl;
+            cout << "    compress time is " << float(t2 - t1)/CLOCKS_PER_SEC << " s" << endl;
         }
         else {
             cout << " Decompressing file ... " << endl;
             long t1 = clock();
-            string _s = decompress(file, result);
+            string _s = decompress(file, static_cast<size_t>(result));
             long t2 = clock();
             if (!_s.empty())
                 cout << "  decompressed file is " << _s << endl;
             else
                 cout << "  decompress error in file " << file << endl;
-            cout << "    decompress time is " << float(t2-t1)/CLOCKS_PER_SEC << " s" << endl;
+            cout << "    decompress time is " << float(t2 - t1)/CLOCKS_PER_SEC << " s" << endl;
         }
     }
 
@@ -158,7 +156,7 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-string compress(const string& file, int header_size, float &ratio) {
+string compress(const string& file, size_t header_size, double &ratio) {
     static  uchar v_line_in[LEN_16K];
     static  uchar v_line_exp[LEN_8K];
     static  uchar v_line_mant[LEN_8K];
@@ -166,9 +164,9 @@ string compress(const string& file, int header_size, float &ratio) {
 
     const string empty_str = "";
 
-    float all_writed = 0.0f;
-    float all_readed = 0.0f;
-    ratio = -1.0f;
+    double all_writed = 0.;
+    double all_readed = 0.;
+    ratio = -1.;
 
     string sfw = file + ".tmp";
     ofstream fw(sfw.c_str(), std::ios_base::binary);
@@ -179,11 +177,11 @@ string compress(const string& file, int header_size, float &ratio) {
     }
 
     char *header = new char[header_size];
-    fr.read(header, header_size);
-    all_readed += float(header_size);
+    fr.read(header, static_cast<int>(header_size));
+    all_readed += header_size;
     header[49] = SRC_ZIP; // change data type
-    fw.write(header, header_size);
-    all_writed += float(header_size);
+    fw.write(header, static_cast<int>(header_size));
+    all_writed += header_size;
     delete [] header;
 
     const int ntable = 1024;
@@ -192,28 +190,28 @@ string compress(const string& file, int header_size, float &ratio) {
 
     const size_t SZ_LZW_HD = 16;
     paramLZ plz = compander.getParamLZ();
-    fw.write((char *)&plz.ntable, 4);
-    fw.write((char *)&plz.ncode, 4);
-    fw.write((char *)&plz.nsymbols, 4);
-    fw.write((char *)&plz.size_code_buff, 4);
-    all_writed += float(SZ_LZW_HD);
+    fw.write( reinterpret_cast<char *>(&plz.ntable), 4);
+    fw.write( reinterpret_cast<char *>(&plz.ncode), 4);
+    fw.write( reinterpret_cast<char *>(&plz.nsymbols), 4);
+    fw.write( reinterpret_cast<char *>(&plz.size_code_buff), 4);
+    all_writed += SZ_LZW_HD;
 
     const size_t SZ_AZ_NUM = 8;
     char aznum[SZ_AZ_NUM];
     fr.seekg(header_size, ios_base::beg);
     while (fr.read(aznum, SZ_AZ_NUM)) {
-        all_readed += float(SZ_AZ_NUM);
-        fr.read((char *)v_line_in, LEN_16K);
-        all_readed += float(LEN_16K);
-        for (size_t i=0;i<LEN_8K;++i) {
-            v_line_mant[i] = v_line_in[2*i];
-            v_line_exp[i] = v_line_in[2*i+1];
+        all_readed += SZ_AZ_NUM;
+        fr.read( reinterpret_cast<char *>(v_line_in), LEN_16K);
+        all_readed += LEN_16K;
+        for (size_t i=0; i<LEN_8K; ++i) {
+            v_line_mant[i] = v_line_in[2 * i];
+            v_line_exp[i]  = v_line_in[2 * i + 1];
         }
         int sz = compander.compress(v_line_exp, LEN_8K, v_line_out);
         fw.write(aznum, SZ_AZ_NUM);
-        fw.write((char *)v_line_mant, LEN_8K);
-        fw.write((char *)v_line_out, sz);
-        all_writed += float(SZ_AZ_NUM + LEN_8K + sz);
+        fw.write( reinterpret_cast<char *>(v_line_mant), LEN_8K);
+        fw.write( reinterpret_cast<char *>(v_line_out), sz);
+        all_writed += ( static_cast<int>(SZ_AZ_NUM + LEN_8K) + sz );
     }
 
     fr.close();
@@ -222,12 +220,12 @@ string compress(const string& file, int header_size, float &ratio) {
     std::remove(file.c_str());
     std::rename(sfw.c_str(), file.c_str());
 
-    ratio = all_readed/all_writed;
+    ratio = all_readed / all_writed;
 
     return file;
 }
 
-string decompress(const string& file, int header_size) {
+string decompress(const string& file, size_t header_size) {
     static  uchar v_line_in[LEN_16K];
     static  uchar v_line_exp[LEN_8K];
     static  uchar v_line_mant[LEN_8K];
@@ -243,26 +241,27 @@ string decompress(const string& file, int header_size) {
         return empty_str;
     }
 
-    char *header = new char[header_size];
-    fr.read(header, header_size);
-    header[49] = SRC; // change data type
-    fw.write(header, header_size);
-    delete [] header;
+//    char *header = new char[header_size];
+    FileHeader * fh = {};
+    fr.read( reinterpret_cast<char *>(fh), static_cast<int>(header_size));
+    fh->dataType = SRC; // change data type
+    fw.write( reinterpret_cast<char *>(fh), static_cast<int>(header_size));
+//    delete [] header;
 
     paramLZ plz;
     const size_t SZ_LZW_HD = 16;
-    fr.read((char *)&plz.ntable, 4);
-    fr.read((char *)&plz.ncode, 4);
-    fr.read((char *)&plz.nsymbols, 4);
-    fr.read((char *)&plz.size_code_buff, 4);
+    fr.read( reinterpret_cast<char *>(&plz.ntable), 4);
+    fr.read( reinterpret_cast<char *>(&plz.ncode), 4);
+    fr.read( reinterpret_cast<char *>(&plz.nsymbols), 4);
+    fr.read( reinterpret_cast<char *>(&plz.size_code_buff), 4);
 
     Lzw compander(plz.ntable, plz.ncode);
-    paramLZ plz_ = compander.getParamLZ();
+    paramLZ plz_reference = compander.getParamLZ();
 
-    if ((plz_.ncode != plz.ncode) ||
-    (plz_.ntable != plz.ntable) ||
-    (plz_.size_code_buff != plz.size_code_buff) ||
-    (plz_.nsymbols != plz.nsymbols)) {
+    if ((plz_reference.ncode != plz.ncode) ||
+    (plz_reference.ntable != plz.ntable) ||
+    (plz_reference.size_code_buff != plz.size_code_buff) ||
+    (plz_reference.nsymbols != plz.nsymbols)) {
         std::remove(sfw.c_str());
         return empty_str;
     }
@@ -274,19 +273,20 @@ string decompress(const string& file, int header_size) {
     const size_t SZ_AZ_NUM = 8;
     char aznum[SZ_AZ_NUM];
     bool error = false;
+    auto size_code_buff = static_cast<int>(plz.size_code_buff);
     while ((fr.read(aznum, SZ_AZ_NUM))&&(!error)) {
-        fr.read((char *)v_line_mant, LEN_8K);
-        fr.read((char *)wr_blocks, SZ_WR_BL);
-        size_t nRd = (wr_blocks[0] + (wr_blocks[1] << 8) + (wr_blocks[2] << 16) + (wr_blocks[3] << 24))*plz.size_code_buff;
-        fr.read((char *)&v_line_in[SZ_WR_BL], nRd);
+        fr.read( reinterpret_cast<char *>(v_line_mant), LEN_8K);
+        fr.read( reinterpret_cast<char *>(wr_blocks), SZ_WR_BL);
+        int nRd = ( wr_blocks[0] + (wr_blocks[1] << 8) + (wr_blocks[2] << 16) + (wr_blocks[3] << 24) ) * size_code_buff;
+        fr.read( reinterpret_cast<char *>(&v_line_in[SZ_WR_BL]), nRd);
         int sz = compander.decompress(v_line_in, v_line_exp);
-        error = (sz != (int)LEN_8K);
-        for (size_t i=0;i<LEN_8K;++i) {
+        error = (sz != LEN_8K);
+        for (size_t i=0; i<LEN_8K; ++i) {
             v_line_out[2*i] = v_line_mant[i];
             v_line_out[2*i+1] = v_line_exp[i];
         }
         fw.write(aznum, SZ_AZ_NUM);
-        fw.write((char *)v_line_out, LEN_16K);
+        fw.write(reinterpret_cast<char *>(v_line_out), LEN_16K);
     }
 
     fr.close();
@@ -305,9 +305,8 @@ string decompress(const string& file, int header_size) {
 
 int read_radar_header(const string& file, FileHeader &fh) {
     ifstream f(file.c_str(), std::ios_base::binary);
-    if (!f.is_open()) {
+    if (!f.is_open())
         return -1;
-    }
 
     int header_size = 0;
 
@@ -315,35 +314,34 @@ int read_radar_header(const string& file, FileHeader &fh) {
     f.read(fh.name, 12);
     f.read(fh.polarization, 12);
 
-    f.read((char *)&fh.version, 4);
-    f.read((char *)&fh.r_angle, 4);
+    f.read( reinterpret_cast<char *>(&fh.version), 4);
+    f.read( reinterpret_cast<char *>(&fh.r_angle), 4);
 
-    f.read((char *)&fh.att, 1);
-    f.read((char *)&fh.sign, 1);
+    f.read( reinterpret_cast<char *>(&fh.att), 1);
+    f.read( reinterpret_cast<char *>(&fh.sign), 1);
 
-    f.read((char *)&fh.numLine, 2);
+    f.read( reinterpret_cast<char *>(&fh.numLine), 2);
 
-    f.read((char *)&fh.r_average, 1);
-    f.read((char *)&fh.dataType, 1);
+    f.read( reinterpret_cast<char *>(&fh.r_average), 1);
+    f.read( reinterpret_cast<char *>(&fh.dataType), 1);
 
-    f.read((char *)&fh.r_discret, 4);
+    f.read( reinterpret_cast<char *>(&fh.r_discret), 4);
 
-    f.read((char *)&fh.r_numPoint, 2);
+    f.read( reinterpret_cast<char *>(&fh.r_numPoint), 2);
 
     if (f.gcount() < 1)
         return -2;
 
     header_size += 56;
 
-    unsigned char commentBytes[4];
+    uchar commentBytes[4];
     if (fh.version == 1) { // protocol version 2
-        f.read((char *)commentBytes, 4);
+        f.read( reinterpret_cast<char *>(commentBytes), 4);
         header_size += 4;
-        // Big endian int from Qt library
+        // Big endian int, size of QString("This is a comment")
         int cb = commentBytes[3] + (commentBytes[2] << 8) + (commentBytes[1] << 16) + (commentBytes[0] << 24);
         if (cb < 0)
             cb = 0;
-//        cout << " comment bytes is " << cb << endl;
         f.seekg(cb, ios_base::cur);
         header_size += cb;
     }
@@ -370,8 +368,9 @@ string dataType(int type) {
         break;
     case SRC_ZIP:
         result = "SRC_ZIP";
-    default:
         break;
+    default:
+        ;
     }
 
     return result;
