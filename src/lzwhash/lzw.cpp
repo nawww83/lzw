@@ -107,27 +107,24 @@ paramLZ LzwPrivate::getParamLZ() {
     return p;
 }
 
-void LzwPrivate::flushBuffer(uchar *v)
-{
+void LzwPrivate::flushBuffer(uchar *v) {
     copyNCharsWithZeros(v, code_buff, size_code_buff); // обязательно с обнулением
     fill_bit  = 0;
     wr_bytes += size_code_buff;
 }
 
-void LzwPrivate::writeToBuffer(const uchar *v)
-{
+void LzwPrivate::writeToBuffer(const uchar *v) {
     copyNChars(code_buff, v, size_code_buff);
     readed_bit = 0;
     rd_bytes  += size_code_buff;
 }
 
-void LzwPrivate::writeCode(uchar *v, const size_t code)
-{
-    const int index_begin = (fill_bit>>3); //  integer div 8
-    const int index_end   = ((fill_bit + N_CODE - 1)>>3);
+void LzwPrivate::writeCode(uchar *v, const size_t code) {
+    const int index_begin = (fill_bit >> 3); //  integer div 8
+    const int index_end   = ((fill_bit + static_cast<int>(N_CODE) - 1) >> 3);
     const int defect_begin = fill_bit & 7; // integer % 8
-    const int shift_begin  = N_CODE - (8 - defect_begin);
-    const int defect_end   = (fill_bit + N_CODE) & 7;
+    const int shift_begin  = static_cast<int>(N_CODE) - (8 - defect_begin);
+    const int defect_end   = (fill_bit + static_cast<int>(N_CODE)) & 7;
     const int shift_end    = (8 - defect_end) & 7; // always > 0
 
     code_buff[index_begin] |= (code >> shift_begin);
@@ -139,16 +136,15 @@ void LzwPrivate::writeCode(uchar *v, const size_t code)
     if (index_end ^ index_begin)
         code_buff[index_end] |= (code << shift_end);
 
-    fill_bit += N_CODE;
+    fill_bit += static_cast<int>(N_CODE);
 
-    // buffer is fulled or (code is equal END_CODE)
-    buffer_need_flush = !(fill_bit ^ size_code_buff_bit)||!(code ^ END_CODE);
+    // (buffer is fulled) or (code is equal END_CODE)
+    buffer_need_flush = ( !(fill_bit ^ static_cast<int>(size_code_buff_bit)) || (!(code ^ END_CODE)) );
     if (buffer_need_flush)
         flushBuffer(v);
 }
 
-void LzwPrivate::readCode(const uchar *v, size_t &code)
-{
+void LzwPrivate::readCode(const uchar *v, size_t &code) {
     if (buffer_is_old)
         writeToBuffer(v);
 
@@ -161,17 +157,17 @@ void LzwPrivate::readCode(const uchar *v, size_t &code)
 
     // zeros left defect_begin bits from code_buff[...] byte.
     const uchar tmp = (( 1 << (8 - defect_begin) ) - 1) & code_buff[index_begin];
-    code = static_cast<size_t>(tmp) << shift_begin;
+    code = (static_cast<size_t>(tmp) << shift_begin);
 
-    int shift = (shift_begin > 0) ? shift_begin : -shift_begin;
+    auto shift = (shift_begin > 0) ? shift_begin : -shift_begin;
     for (int i=index_begin + 1; i<index_end; ++i)
         code += static_cast<size_t>( ( static_cast<int>(code_buff[i]) << (shift -= 8)) );
 
     if (index_end ^ index_begin)
         code += (code_buff[index_end] >> shift_end);
 
-    readed_bit += N_CODE;
-    buffer_is_old = !( static_cast<size_t>(readed_bit) ^ size_code_buff_bit);
+    readed_bit += static_cast<int>(N_CODE);
+    buffer_is_old = ( !( static_cast<size_t>(readed_bit) ^ size_code_buff_bit) );
 }
 
 

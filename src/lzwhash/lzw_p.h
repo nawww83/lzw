@@ -27,10 +27,9 @@ private:
 
     size_t getSizeCodeBuff(size_t ncode) const;
 
-    void copyNChars(uchar *Wr, const uchar *Rd, const int n)
-    {
-        for (int i=0;i<n;++i)
-            Wr[i]=Rd[i];
+    void copyNChars(uchar *Wr, const uchar *Rd, size_t n) {
+        for (size_t i=0; i<n; ++i)
+            Wr[i] = Rd[i];
     }
 
     void copyNCharsWithZeros(uchar *Wr, uchar *Rd, size_t n)

@@ -20,9 +20,11 @@ CONFIG(debug, debug|release) {
 }
 
 SOURCES += main.cpp\
+    lzw_thread.cpp \
         widget.cpp \
 
-HEADERS  += widget.h
+HEADERS  += widget.h \
+    lzw_thread.h
 
 INCLUDEPATH +=  ../lzwhash/
 

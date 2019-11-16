@@ -3,11 +3,10 @@
 
 #include <QWidget>
 
-#include "lzwdefs.h"
+#include "lzw_thread.h"
 
 class QFile;
 
-constexpr qint64 IN_N = 4096;
 constexpr qint64 SZ_HEADER = 16;
 constexpr qint64 SZ_NBLOCK = 4;
 
@@ -25,7 +24,6 @@ class Widget;
 class Widget : public QWidget
 {
     Q_OBJECT
-    
 public:
     explicit Widget(QWidget *parent = nullptr);
     ~Widget();
@@ -41,6 +39,10 @@ public:
     void writeSettings();
     void readSettings();
 
+public slots:
+    void handleCompressResults(vec_int64 res_1, vec_double res_2);
+    void progress(int percent);
+
 private slots:
     void on_btnSelectFile_clicked();    
 
@@ -54,11 +56,14 @@ private slots:
 
     void on_checkBoxAutoNBits_clicked();
 
+    void on_sbxBufferSize_valueChanged(int arg1);
+
 private:
     Ui::Widget *ui;
-    uchar in[IN_N*2];
-    uchar out[IN_N*4];
-    uchar in_decod[IN_N*2];
+    int SZ_BUFFER{4096}; // Размер блока непрерывно сжимаемых данных
+    QVector<uchar> in;
+    QVector<uchar> out;
+    QVector<uchar> in_decod;
 
     QString str;
     QString path;

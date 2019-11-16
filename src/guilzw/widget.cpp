@@ -6,9 +6,13 @@
 #include <QFileDialog>
 #include <QSettings>
 #include <QTime>
+#include <QThread>
+
 #include <cmath>
+#include <iostream>
 
 using namespace llzz;
+
 
 Widget::Widget(QWidget *parent) :
     QWidget(parent),
@@ -21,6 +25,11 @@ Widget::Widget(QWidget *parent) :
     readSettings();
     ui->checkBoxAutoNBits->setChecked(true);
     on_checkBoxAutoNBits_clicked();
+
+    ui->sbxBufferSize->setValue(SZ_BUFFER);
+
+    qRegisterMetaType<vec_int64>("vec_int64");
+    qRegisterMetaType<vec_int64>("vec_double");
 }
 
 Widget::~Widget() {
@@ -34,9 +43,7 @@ qint64 Widget::fillVector(uchar *u, qint64 n) {
     constexpr qint64 reka_line_size = 4096;
     switch (id) {
     case RekaLine:
-        if (n == reka_line_size)
-            sz = readRekaVector(u, n);
-        else sz = 0;
+        sz = readRekaVector(u, reka_line_size);
         break;
     case RandomLine:
         randomByteVector(n, u);
@@ -114,6 +121,23 @@ void Widget::readSettings() {
     path = settings.value("path", "").toString();
 }
 
+void Widget::handleCompressResults(vec_int64 res_1, vec_double res_2) {
+    ui->textBrowser->append(QString::fromUtf8("Time elapsed %1 ms").arg(1. * res_1.at(2)));
+    ui->textBrowser->append(QString::fromUtf8("Readed %1 bytes").arg(res_1.at(1)));
+    ui->textBrowser->append(QString::fromUtf8("Writed %1 bytes").arg(res_1.at(0)));
+    ui->textBrowser->append(QString::fromUtf8("Total compress ratio in/out is %1").arg( 1. * res_1.at(1) / res_1.at(0) ));
+
+
+    ui->textBrowser->append(QString::fromUtf8("Compress ratio R:"));
+    ui->textBrowser->append(QString::fromUtf8("Mean R is %1").arg(res_2.at(0)));
+    ui->textBrowser->append(QString::fromUtf8("Stdev. R is %1").arg(res_2.at(1)));
+    ui->textBrowser->append(QString::fromUtf8("R in [%1; %2]").arg(res_2.at(2)).arg(res_2.at(3)));
+}
+
+void Widget::progress(int percent) {
+    ui->pbRun->setValue(percent);
+}
+
 void Widget::on_btnSelectFile_clicked() {
     QString str;
     QDir dir(path);
@@ -132,14 +156,14 @@ void Widget::on_btnTest_clicked() {
     ui->textBrowser->clear();
     ui->textBrowser->append(QString("LZW test running..."));
 
-    auto sz = fillVector(in, IN_N);
+    auto sz = fillVector(in.data(), SZ_BUFFER);
 
-    if (sz!= IN_N) {
-        ui->textBrowser->append(QString("Size error!"));
-        return;
-    }
+//    if (sz!= SZ_BUFFER) {
+//        ui->textBrowser->append(QString("Size error!"));
+//        return;
+//    }
 
-    copyByteVectorToString(sz, in, str);
+    copyByteVectorToString(sz, in.constData(), str);
     ui->textBrowser->append(QString("Input %1 bytes").arg(sz));
     ui->textBrowser->append(str);
 
@@ -154,143 +178,52 @@ void Widget::on_btnTest_clicked() {
     auto n_repeat = static_cast<size_t>(ui->spinBox->value());
     auto sz_ = static_cast<size_t>(sz);
     for (size_t i=0; i<n_repeat; ++i)
-        Wr = lzmpw.compress(in, sz_, out);
+        Wr = lzmpw.compress(in.data(), sz_, out.data());
     ui->textBrowser->append(QString("Compression time is %1 ms per line").arg(1. * tm.elapsed() / n_repeat));
 
-    copyByteVectorToString(Wr, out, str);
+    copyByteVectorToString(Wr, out.constData(), str);
     ui->textBrowser->append(QString("Compressor output: %1 bytes").arg(Wr));
     ui->textBrowser->append(str);
 
-    Wr=lzmpw.decompress(out, in_decod);
+    Wr=lzmpw.decompress(out.data(), in_decod.data());
 
-    copyByteVectorToString(Wr, in_decod, str);
+    copyByteVectorToString(Wr, in_decod.constData(), str);
     ui->textBrowser->append(QString("Decompressor output: %1 bytes").arg(Wr));
     ui->textBrowser->append(str);
 
-    ui->textBrowser->append(QString("Memcmp() test is %1").arg(memcmp(in, in_decod, static_cast<size_t>(sz))));
+    ui->textBrowser->append(QString("Memcmp() test is %1").arg(memcmp(in.data(), in_decod.data(), static_cast<size_t>(sz))));
 }
 
 void Widget::on_btnCompress_clicked() {
-    bool WRITE = ui->checkBoxWriteToFile->isChecked();    
-    QDir dir;
-    QFile in_file;
-    QFile out_file;    
+    bool WRITE = ui->checkBoxWriteToFile->isChecked();      
     ui->textBrowser->clear();
-    auto Rd = IN_N;
 
-    if (ui->lineEdit->text().isEmpty()) return;
-    dir.setPath(ui->lineEdit->text());
-    in_file.setFileName(dir.absolutePath());
-    if (!in_file.exists())
+    if (ui->lineEdit->text().isEmpty())
         return;
-
-    if (WRITE) {
-        QString abspath = dir.absolutePath();
-        abspath.replace(QString(".bin"), QString(".tmp"), Qt::CaseInsensitive);
-        out_file.setFileName(abspath);
-        out_file.open(QIODevice::WriteOnly);
-    }
-
-    ui->textBrowser->append(in_file.fileName());
-
-    in_file.open(QIODevice::ReadOnly);
-    ui->pbRun->setValue(0);
-
-    auto count_line = in_file.size() / Rd;
-    auto res_count_line = in_file.size() % Rd;
-    if (count_line < 1) {
-        Rd = in_file.size();
-        count_line = 1;
-    }
-    ratio = new double[ static_cast<size_t>(count_line)];
-
-    char WrB[SZ_HEADER];    
-
-    ui->textBrowser->append(QString("LZW compress running ..."));
 
     auto tt = static_cast<size_t>(ui->spinBoxNTable->value());
     auto bb = static_cast<size_t>(ui->spinBoxNBits->value());
-    Lzw lzmpw(tt, bb);
-    paramLZ pLZ;
 
-    pLZ = lzmpw.getParamLZ();
+    auto lzw = new lzw_thread(ui->lineEdit->text(), WRITE, SZ_BUFFER, SZ_HEADER, tt, bb);
+    QThread *workerThread = new QThread();
+    lzw->moveToThread(workerThread);
 
-    int Writed = 0;
+    connect(workerThread, &QThread::started, lzw, &lzw_thread::compress);
+    connect(lzw, SIGNAL(progress(int)), this, SLOT(progress(int)));
 
-    fillByteArrayFromHeader(WrB, pLZ);
-    if (WRITE)
-        out_file.write(WrB, SZ_HEADER);
+    auto ready = SIGNAL(ready(vec_int64, vec_double));
+    connect(lzw, ready, SLOT(handleCompressResults(vec_int64, vec_double)));
+    connect(lzw, &lzw_thread::ready, [=]() {
+        lzw->deleteLater();
+        workerThread->quit();
+        ui->btnCompress->setEnabled(true);
+    });
+    connect(workerThread, &QThread::finished, workerThread, &QThread::deleteLater);
 
-    Writed += SZ_HEADER;
-
-    QTime tm;
-    tm.start();
-
-    int Readed = 0;
-    for (size_t i=0; i<count_line; ++i) {
-        in_file.read(reinterpret_cast<char *>(in), Rd);
-        Readed += Rd;
-
-        int Wr = 0;        
-        Wr = lzmpw.compress(in, static_cast<size_t>(Rd), out);
-
-        if (WRITE)
-            out_file.write(reinterpret_cast<char*>(out), Wr);
-
-        Writed += Wr;
-        ratio[i] =  1. * Rd / Wr;
-        ui->pbRun->setValue((i + 1) * 100 / count_line);
-    }
-    if (res_count_line > 0) {
-        in_file.read(reinterpret_cast<char *>(in), res_count_line);
-        Readed += res_count_line;
-
-        int Wr = 0;
-        Wr = lzmpw.compress(in, static_cast<size_t>(res_count_line), out);
-
-        if (WRITE)
-            out_file.write(reinterpret_cast<char*>(out), Wr);
-
-        Writed += Wr;
-    }
-
-    if (WRITE) {
-        in_file.remove();
-        auto fn = out_file.fileName();
-        auto fn_new = fn.replace(QString(".tmp"), QString(".binz"), Qt::CaseInsensitive);
-        out_file.rename(fn_new);
-        out_file.close();
-    } else
-        in_file.close();
-
-    ui->textBrowser->append(QString::fromUtf8("Time elapsed %1 ms").arg(1. * tm.elapsed()));
-    ui->textBrowser->append(QString::fromUtf8("In %1 bytes").arg(Readed));
-    ui->textBrowser->append(QString::fromUtf8("Out %1 bytes").arg(Writed));
-    ui->textBrowser->append(QString::fromUtf8("Total compress ratio in/out is %1").arg( 1. * Readed / Writed));
-    double mean_ratio = 0.;
-    double max_ratio = ratio[0];
-    double min_ratio = ratio[0];
-    for(size_t j=0; j<count_line; ++j) {
-        mean_ratio += ratio[j];
-        max_ratio = (ratio[j] > max_ratio) ? ratio[j] : max_ratio;
-        min_ratio = (ratio[j] < min_ratio) ? ratio[j] : min_ratio;
-    }
-    mean_ratio /= count_line;
-    double sko_ratio = 0.;
-    for(size_t j=0; j<count_line; ++j)
-        sko_ratio += (ratio[j] - mean_ratio) * (ratio[j] - mean_ratio);
-    if (count_line > 1)
-        sko_ratio /= (count_line - 1);
-    sko_ratio = std::sqrt(sko_ratio);
-
-    ui->textBrowser->append(QString::fromUtf8("Compress ratio R:"));
-    ui->textBrowser->append(QString::fromUtf8("Mean R is %1").arg(mean_ratio));
-    ui->textBrowser->append(QString::fromUtf8("SKO R is %1").arg(sko_ratio));
-    ui->textBrowser->append(QString::fromUtf8("Min R; Max R is %1; %2").arg(min_ratio).arg(max_ratio));
 
     ui->btnCompress->setEnabled(false);
 
-    delete [] ratio;
+    workerThread->start();
 }
 
 void Widget::on_btnDeCompress_clicked() {
@@ -323,7 +256,7 @@ void Widget::on_btnDeCompress_clicked() {
     paramLZ pLZ;
     getHeader(in_file, pLZ);
 
-    int Readed = 0;
+    size_t Readed = 0;
     Readed += SZ_HEADER;
 
     ui->spinBoxNBits->setValue( static_cast<int>(pLZ.ncode) );
@@ -331,7 +264,7 @@ void Widget::on_btnDeCompress_clicked() {
 
     Lzw lzmpw(pLZ.ntable, pLZ.ncode);
 
-    int Writed = 0;
+    size_t Writed = 0;
 
     QTime tm;
     tm.start();
@@ -346,14 +279,14 @@ void Widget::on_btnDeCompress_clicked() {
         Readed += SZ_NBLOCK;
 
         in_file.read(reinterpret_cast<char *>(&in[SZ_NBLOCK]), Rd);
-        for (size_t i=0; i<SZ_NBLOCK; ++i)
+        for (int i=0; i< static_cast<int>(SZ_NBLOCK); ++i)
             in[i] = reinterpret_cast<const uchar *>(NBl.constData())[i];
 
         Readed += Rd;
-        int Wr = lzmpw.decompress(in, out);
+        int Wr = lzmpw.decompress(in.data(), out.data());
         if (WRITE)
-            out_file.write(reinterpret_cast<char *>(out), Wr);
-        Writed += Wr;
+            out_file.write(reinterpret_cast<char *>(out.data()), Wr);
+        Writed += static_cast<size_t>( Wr );
 
         ui->pbRun->setValue( static_cast<int>( in_file.pos() / in_file.size() ) * 100);
     }
@@ -393,4 +326,12 @@ void Widget::on_checkBoxAutoNBits_clicked() {
         ui->spinBoxNBits->setEnabled(false);
     } else
         ui->spinBoxNBits->setEnabled(true);
+}
+
+void Widget::on_sbxBufferSize_valueChanged(int arg1) {
+    SZ_BUFFER = arg1;
+
+    in.resize(SZ_BUFFER * 2);
+    out.resize(SZ_BUFFER * 4);
+    in_decod.resize(SZ_BUFFER * 2);
 }
