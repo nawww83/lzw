@@ -7,9 +7,6 @@
 
 class QFile;
 
-constexpr qint64 SZ_HEADER = 16;
-constexpr qint64 SZ_NBLOCK = 4;
-
 enum {
     RekaLine = 1,
     RandomLine = 2,
@@ -41,6 +38,7 @@ public:
 
 public slots:
     void handleCompressResults(vec_int64 res_1, vec_double res_2);
+    void handleDeCompressResults(vec_int64 res_1, vec_double res_2);
     void progress(int percent);
 
 private slots:
@@ -60,7 +58,7 @@ private slots:
 
 private:
     Ui::Widget *ui;
-    int SZ_BUFFER{4096}; // Размер блока непрерывно сжимаемых данных
+    int mBlockSize{4096}; // Размер блока непрерывно сжимаемых данных
     QVector<uchar> in;
     QVector<uchar> out;
     QVector<uchar> in_decod;

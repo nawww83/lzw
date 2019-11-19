@@ -26,7 +26,7 @@ Widget::Widget(QWidget *parent) :
     ui->checkBoxAutoNBits->setChecked(true);
     on_checkBoxAutoNBits_clicked();
 
-    ui->sbxBufferSize->setValue(SZ_BUFFER);
+    ui->sbxBufferSize->setValue(mBlockSize);
 
     qRegisterMetaType<vec_int64>("vec_int64");
     qRegisterMetaType<vec_int64>("vec_double");
@@ -127,11 +127,23 @@ void Widget::handleCompressResults(vec_int64 res_1, vec_double res_2) {
     ui->textBrowser->append(QString::fromUtf8("Writed %1 bytes").arg(res_1.at(0)));
     ui->textBrowser->append(QString::fromUtf8("Total compress ratio in/out is %1").arg( 1. * res_1.at(1) / res_1.at(0) ));
 
-
     ui->textBrowser->append(QString::fromUtf8("Compress ratio R:"));
     ui->textBrowser->append(QString::fromUtf8("Mean R is %1").arg(res_2.at(0)));
     ui->textBrowser->append(QString::fromUtf8("Stdev. R is %1").arg(res_2.at(1)));
     ui->textBrowser->append(QString::fromUtf8("R in [%1; %2]").arg(res_2.at(2)).arg(res_2.at(3)));
+
+    ui->btnCompress->setEnabled(true);
+}
+
+void Widget::handleDeCompressResults(vec_int64 res_1, vec_double res_2) {
+    ui->textBrowser->append(QString::fromUtf8("Time elapsed %1 ms").arg(1. * res_1.at(2)));
+    ui->textBrowser->append(QString::fromUtf8("Readed %1 bytes").arg(res_1.at(1)));
+    ui->textBrowser->append(QString::fromUtf8("Writed %1 bytes").arg(res_1.at(0)));
+
+    ui->spinBoxNBits->setValue( static_cast<int>(res_2.at(0) + 0.5) );
+    ui->spinBoxNTable->setValue( static_cast<int>(res_2.at(1) + 0.5) );
+
+    ui->btnDeCompress->setEnabled(true);
 }
 
 void Widget::progress(int percent) {
@@ -143,20 +155,17 @@ void Widget::on_btnSelectFile_clicked() {
     QDir dir(path);
     str = QFileDialog::getOpenFileName(nullptr, "", dir.path(), "*.bin *.binz");
     ui->lineEdit->setText(str);
-    if (str.contains(".binz")) {
-        ui->btnDeCompress->setEnabled(true);
-        ui->btnCompress->setEnabled(false);
-    } else if (str.contains(".bin")) {
-        ui->btnDeCompress->setEnabled(false);
-        ui->btnCompress->setEnabled(true);
-    }
+    auto bin_z = str.contains(QRegExp(".binz$"));
+    auto bin = str.contains(QRegExp(".bin$"));
+    ui->btnDeCompress->setEnabled(bin_z);
+    ui->btnCompress->setEnabled(bin);
 }
 
 void Widget::on_btnTest_clicked() {
     ui->textBrowser->clear();
     ui->textBrowser->append(QString("LZW test running..."));
 
-    auto sz = fillVector(in.data(), SZ_BUFFER);
+    auto sz = fillVector(in.data(), mBlockSize);
 
 //    if (sz!= SZ_BUFFER) {
 //        ui->textBrowser->append(QString("Size error!"));
@@ -195,31 +204,31 @@ void Widget::on_btnTest_clicked() {
 }
 
 void Widget::on_btnCompress_clicked() {
-    bool WRITE = ui->checkBoxWriteToFile->isChecked();      
+    bool write = ui->checkBoxWriteToFile->isChecked();
     ui->textBrowser->clear();
 
-    if (ui->lineEdit->text().isEmpty())
+    auto path = ui->lineEdit->text();
+
+    if (!QFile::exists(path))
         return;
 
-    auto tt = static_cast<size_t>(ui->spinBoxNTable->value());
-    auto bb = static_cast<size_t>(ui->spinBoxNBits->value());
+    auto n_table = static_cast<size_t>(ui->spinBoxNTable->value());
+    auto n_code = static_cast<size_t>(ui->spinBoxNBits->value());
 
-    auto lzw = new lzw_thread(ui->lineEdit->text(), WRITE, SZ_BUFFER, SZ_HEADER, tt, bb);
+    auto lzw = new lzw_thread(path, write, mBlockSize, n_table, n_code);
     QThread *workerThread = new QThread();
     lzw->moveToThread(workerThread);
 
     connect(workerThread, &QThread::started, lzw, &lzw_thread::compress);
     connect(lzw, SIGNAL(progress(int)), this, SLOT(progress(int)));
 
-    auto ready = SIGNAL(ready(vec_int64, vec_double));
+    auto ready = SIGNAL(compress_ready(vec_int64, vec_double));
     connect(lzw, ready, SLOT(handleCompressResults(vec_int64, vec_double)));
-    connect(lzw, &lzw_thread::ready, [=]() {
+    connect(lzw, &lzw_thread::compress_ready, [=]() {
         lzw->deleteLater();
         workerThread->quit();
-        ui->btnCompress->setEnabled(true);
     });
     connect(workerThread, &QThread::finished, workerThread, &QThread::deleteLater);
-
 
     ui->btnCompress->setEnabled(false);
 
@@ -229,82 +238,33 @@ void Widget::on_btnCompress_clicked() {
 void Widget::on_btnDeCompress_clicked() {
     bool WRITE = ui->checkBoxWriteToFile->isChecked();
     ui->textBrowser->clear();
-    if (ui->lineEdit->text().isEmpty())
+
+    auto path = ui->lineEdit->text();
+
+    if (!QFile::exists(path))
         return;
 
-    QDir dir;
-    QFile in_file;
-    QFile out_file;
-    dir.setPath(ui->lineEdit->text());
-    in_file.setFileName(dir.absolutePath());
-    if (!in_file.exists())
-        return;
+    auto n_table = static_cast<size_t>(ui->spinBoxNTable->value());
+    auto n_code = static_cast<size_t>(ui->spinBoxNBits->value());
 
-    QString abspath = dir.absolutePath();
-    abspath.replace(QString(".binz"), QString(".tmp"), Qt::CaseInsensitive);
-    out_file.setFileName(abspath);
+    auto lzw = new lzw_thread(path, WRITE, mBlockSize, n_table, n_code);
+    QThread *workerThread = new QThread();
+    lzw->moveToThread(workerThread);
 
-    if (WRITE)
-        out_file.open(QIODevice::WriteOnly);
+    connect(workerThread, &QThread::started, lzw, &lzw_thread::decompress);
+    connect(lzw, SIGNAL(progress(int)), this, SLOT(progress(int)));
 
-    ui->textBrowser->append(in_file.fileName());
-    in_file.open(QIODevice::ReadOnly);
-    ui->pbRun->setValue(0);
-
-    ui->textBrowser->append(QString("LZW decompression..."));
-
-    paramLZ pLZ;
-    getHeader(in_file, pLZ);
-
-    size_t Readed = 0;
-    Readed += SZ_HEADER;
-
-    ui->spinBoxNBits->setValue( static_cast<int>(pLZ.ncode) );
-    ui->spinBoxNTable->setValue( static_cast<int>(pLZ.ntable) );
-
-    Lzw lzmpw(pLZ.ntable, pLZ.ncode);
-
-    size_t Writed = 0;
-
-    QTime tm;
-    tm.start();
-
-    size_t NBlocks = 0; // обязательно обнулить!
-    while (!in_file.atEnd()) {
-        quint32 *p32 = &NBlocks;
-        QByteArray NBl = in_file.read(SZ_NBLOCK);
-        memcpy(p32, NBl.data(), SZ_NBLOCK);
-
-        auto Rd = NBlocks * pLZ.size_code_buff;
-        Readed += SZ_NBLOCK;
-
-        in_file.read(reinterpret_cast<char *>(&in[SZ_NBLOCK]), Rd);
-        for (int i=0; i< static_cast<int>(SZ_NBLOCK); ++i)
-            in[i] = reinterpret_cast<const uchar *>(NBl.constData())[i];
-
-        Readed += Rd;
-        int Wr = lzmpw.decompress(in.data(), out.data());
-        if (WRITE)
-            out_file.write(reinterpret_cast<char *>(out.data()), Wr);
-        Writed += static_cast<size_t>( Wr );
-
-        ui->pbRun->setValue( static_cast<int>( in_file.pos() / in_file.size() ) * 100);
-    }
-
-    if (WRITE) {
-        in_file.remove();
-        auto fn = out_file.fileName();
-        auto fn_new = fn.replace(QString(".tmp"), QString(".bin"), Qt::CaseInsensitive);
-        out_file.rename(fn_new);
-        out_file.close();
-    } else
-        in_file.close();
-
-    ui->textBrowser->append(QString::fromUtf8("Time elapsed %1 ms").arg(1. * tm.elapsed()));
-    ui->textBrowser->append(QString::fromUtf8("In %1 bytes").arg(Readed));
-    ui->textBrowser->append(QString::fromUtf8("Out %1 bytes").arg(Writed));
+    auto ready = SIGNAL(decompress_ready(vec_int64, vec_double));
+    connect(lzw, ready, SLOT(handleDeCompressResults(vec_int64, vec_double)));
+    connect(lzw, &lzw_thread::decompress_ready, [=]() {
+        lzw->deleteLater();
+        workerThread->quit();
+    });
+    connect(workerThread, &QThread::finished, workerThread, &QThread::deleteLater);
 
     ui->btnDeCompress->setEnabled(false);
+
+    workerThread->start();
 }
 
 void Widget::on_spinBoxNTable_valueChanged(int arg1) {
@@ -329,9 +289,9 @@ void Widget::on_checkBoxAutoNBits_clicked() {
 }
 
 void Widget::on_sbxBufferSize_valueChanged(int arg1) {
-    SZ_BUFFER = arg1;
+    mBlockSize = arg1;
 
-    in.resize(SZ_BUFFER * 2);
-    out.resize(SZ_BUFFER * 4);
-    in_decod.resize(SZ_BUFFER * 2);
+    in.resize(mBlockSize * 2);
+    out.resize(mBlockSize * 4);
+    in_decod.resize(mBlockSize * 2);
 }
