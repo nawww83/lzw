@@ -62,12 +62,12 @@ qint64 Widget::fillVector(uchar *u, qint64 n) {
 
 void Widget::randomByteVector(qint64 n, uchar *u) {
     qsrand( static_cast<uint>(QTime::currentTime().msec()) );
-    for (size_t i=0; i<n; ++i)
+    for (auto i=0; i<n; ++i)
         u[i] = static_cast<uchar>( qrand() );
 }
 
 void Widget::repeatByteVector(qint64 n, uchar *u, uchar repeat) {
-    for (size_t i=0; i<n; ++i)
+    for (auto i=0; i<n; ++i)
         u[i] = repeat;
 }
 
@@ -82,14 +82,14 @@ qint64 Widget::readRekaVector(uchar *u, qint64 n) {
 
 void Widget::copyByteVectorToString(qint64 n, const uchar *u, QString &str) {
     str.clear();
-    for (size_t i=0; i<n; ++i)
+    for (auto i=0; i<n; ++i)
         str.append(QString("%1 ").arg(u[i]));
 }
 
 // NTABLE NCODE NSYMBOLS SIZE_CODE_BUFF
 // SIZE IN BYTES: 4, 4, 4, 4
 void Widget::getHeader(QFile &f, llzz::paramLZ &plz) {
-    size_t countBytes = 4;
+    constexpr auto countBytes = 4;
     QByteArray vb(f.read(countBytes));
     memcpy(&plz.ntable, vb.data(), countBytes);
     vb = f.read(countBytes);
@@ -101,7 +101,7 @@ void Widget::getHeader(QFile &f, llzz::paramLZ &plz) {
 }
 
 void Widget::fillByteArrayFromHeader(char *vb, const llzz::paramLZ &plz) {
-    size_t countBytes = 4;
+    constexpr auto countBytes = 4;
     auto v = vb;
     memcpy(v, &plz.ntable, countBytes); v += countBytes;
     memcpy(v, &plz.ncode, countBytes); v += countBytes;
@@ -166,11 +166,6 @@ void Widget::on_btnTest_clicked() {
     ui->textBrowser->append(QString("LZW test running..."));
 
     auto sz = fillVector(in.data(), mBlockSize);
-
-//    if (sz!= SZ_BUFFER) {
-//        ui->textBrowser->append(QString("Size error!"));
-//        return;
-//    }
 
     copyByteVectorToString(sz, in.constData(), str);
     ui->textBrowser->append(QString("Input %1 bytes").arg(sz));

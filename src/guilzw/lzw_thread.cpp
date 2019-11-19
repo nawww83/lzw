@@ -144,18 +144,18 @@ void lzw_thread::decompress() {
     in.resize(mBufferSize * 2);
     out.resize(mBufferSize * 4);
 
-    size_t Writed = 0;
+    qint64 Writed = 0;
 
     QTime time;
     time.start();
 
-    size_t NBlocks = 0; // обязательно обнулить!
+    quint32 NBlocks = 0; // обязательно обнулить!
     while (!in_file.atEnd()) {
-        quint32 *p32 = &NBlocks;
+        auto p = &NBlocks;
         QByteArray NBl = in_file.read(NBLOCK_SIZE);
-        memcpy(p32, NBl.data(), NBLOCK_SIZE);
+        memcpy(p, NBl.data(), NBLOCK_SIZE);
 
-        auto Rd = NBlocks * pLZ.size_code_buff;
+        auto Rd = static_cast<qint64>(NBlocks) * static_cast<qint64>(pLZ.size_code_buff);
         Readed += NBLOCK_SIZE;
 
         memcpy(in.data(), NBl.constData(), NBLOCK_SIZE);
