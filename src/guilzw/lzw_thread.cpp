@@ -4,6 +4,7 @@
 #include <cmath>
 #include <QTime>
 
+
 lzw_thread::lzw_thread(const QString &in, bool write, int buff_size, size_t n_table, size_t n_code) :
    mLzw(Lzw(n_table, n_code))
   , mInputFileName(in)
@@ -17,11 +18,12 @@ void lzw_thread::compress() {
     qint64 Rd = mBufferSize;
     QDir dir(mInputFileName);
     QFile in_file(dir.absolutePath());
+    QFileInfo fi(in_file);
 
     QFile out_file;
     if (mWrite) {
         QString abspath = dir.absolutePath();
-        abspath.replace(QString(".bin"), QString(".tmp"), Qt::CaseInsensitive);
+        abspath.replace(QRegExp(fi.suffix().append("$")), QString("tmp"));
         out_file.setFileName(abspath);
         out_file.open(QIODevice::WriteOnly);
     }
@@ -36,11 +38,16 @@ void lzw_thread::compress() {
     }
     mRatio.resize(count_line);
 
-    QVector<char> WrB(HEADER_SIZE);
+    char WrB[HEADER_SIZE];
     auto pLZ = mLzw.getParamLZ();
-    fillByteArrayFromHeader(WrB.data(), pLZ);
-    if (mWrite)
-        out_file.write(WrB.constData(), HEADER_SIZE);
+    fillHeader(WrB, pLZ);
+    if (mWrite) {
+        auto ext = fi.suffix().toUtf8();
+        auto sz = ext.size(); // in bytes
+        out_file.write(reinterpret_cast<char *>(&sz), sizeof(sz));
+        out_file.write(ext); // extention
+        out_file.write(WrB, HEADER_SIZE);
+    }
 
 
     qint64 Writed = 0;
@@ -83,7 +90,7 @@ void lzw_thread::compress() {
     if (mWrite) {
         in_file.remove();
         auto fn = out_file.fileName();
-        auto fn_new = fn.replace(QString(".tmp"), QString(".binz"), Qt::CaseInsensitive);
+        auto fn_new = fn.replace(QRegExp("tmp$"), QString("lzw"));
         out_file.rename(fn_new);
         out_file.close();
     } else
@@ -127,16 +134,23 @@ void lzw_thread::decompress() {
     QFile out_file;
     if (mWrite) {
         QString abspath = dir.absolutePath();
-        abspath.replace(QString(".binz"), QString(".tmp"), Qt::CaseInsensitive);
+        abspath.replace(QRegExp("lzw$"), QString("tmp"));
         out_file.setFileName(abspath);
         out_file.open(QIODevice::WriteOnly);
     }
 
     auto pLZ = mLzw.getParamLZ();
-    QVector<char> u(HEADER_SIZE);
+    char u[HEADER_SIZE];
     in_file.open(QIODevice::ReadOnly);
-    auto Readed = in_file.read(u.data(), HEADER_SIZE);
-    getHeader(u.constData(), pLZ);
+    int sz = -1;
+    QByteArray ext;
+    in_file.read( reinterpret_cast<char*>(&sz), sizeof(int));
+    ext.resize(sz);
+    in_file.read(ext.data(), sz);
+
+
+    auto Readed = in_file.read(u, HEADER_SIZE);
+    getHeader(u, pLZ);
 
 
     Lzw lzmpw(pLZ.ntable, pLZ.ncode);
@@ -174,7 +188,7 @@ void lzw_thread::decompress() {
     if (mWrite) {
         in_file.remove();
         auto fn = out_file.fileName();
-        auto fn_new = fn.replace(QString(".tmp"), QString(".bin"), Qt::CaseInsensitive);
+        auto fn_new = fn.replace(QRegExp("tmp$"), QString(ext));
         out_file.rename(fn_new);
         out_file.close();
     } else
@@ -193,7 +207,7 @@ void lzw_thread::decompress() {
     emit decompress_ready(res_1, res_2);
 }
 
-void lzw_thread::fillByteArrayFromHeader(char *vb, const paramLZ &plz) {
+void lzw_thread::fillHeader(char *vb, const paramLZ &plz) {
     size_t stride = 4;
     auto v = vb;
     memcpy(v, &plz.ntable, stride); v += stride;

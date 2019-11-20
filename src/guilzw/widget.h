@@ -29,9 +29,7 @@ public:
     void randomByteVector(qint64 n, uchar *u);
     void repeatByteVector(qint64 n, uchar *u, uchar repeat);
     qint64 readRekaVector(uchar *u, qint64 n);
-    void copyByteVectorToString(qint64 n, const uchar *u, QString &str);
-    void getHeader(QFile &f, llzz::paramLZ &plz);
-    void fillByteArrayFromHeader(char *vb, const llzz::paramLZ &plz);
+    void copyByteVectorToString(qint64 n, const uchar *u, QString &mStr);
 
     void writeSettings();
     void readSettings();
@@ -59,13 +57,13 @@ private slots:
 private:
     Ui::Widget *ui;
     int mBlockSize{4096}; // Размер блока непрерывно сжимаемых данных
-    QVector<uchar> in;
-    QVector<uchar> out;
-    QVector<uchar> in_decod;
+    QVector<uchar> mIn;
+    QVector<uchar> mOut;
+    QVector<uchar> mIn_decod;
 
-    QString str;
-    QString path;
-    double *ratio;
+    QString mStr;
+    QString mPath;
+    double *mRatio;
 
     int prevNT, prevNW, prevNB;
 };

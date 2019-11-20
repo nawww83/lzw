@@ -35,7 +35,7 @@ signals:
     void progress(int percent);
 
 private:
-    void fillByteArrayFromHeader(char *vb, const paramLZ &plz);
+    void fillHeader(char *vb, const paramLZ &plz);
     void getHeader(const char *u, llzz::paramLZ &plz);
 
     Lzw mLzw;

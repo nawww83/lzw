@@ -7,6 +7,7 @@
 #include <QSettings>
 #include <QTime>
 #include <QThread>
+#include <QMessageBox>
 
 #include <cmath>
 #include <iostream>
@@ -86,28 +87,6 @@ void Widget::copyByteVectorToString(qint64 n, const uchar *u, QString &str) {
         str.append(QString("%1 ").arg(u[i]));
 }
 
-// NTABLE NCODE NSYMBOLS SIZE_CODE_BUFF
-// SIZE IN BYTES: 4, 4, 4, 4
-void Widget::getHeader(QFile &f, llzz::paramLZ &plz) {
-    constexpr auto countBytes = 4;
-    QByteArray vb(f.read(countBytes));
-    memcpy(&plz.ntable, vb.data(), countBytes);
-    vb = f.read(countBytes);
-    memcpy(&plz.ncode, vb.data(), countBytes);
-    vb = f.read(countBytes);
-    memcpy(&plz.nsymbols, vb.data(), countBytes);
-    vb = f.read(countBytes);
-    memcpy(&plz.size_code_buff, vb.data(), countBytes);
-}
-
-void Widget::fillByteArrayFromHeader(char *vb, const llzz::paramLZ &plz) {
-    constexpr auto countBytes = 4;
-    auto v = vb;
-    memcpy(v, &plz.ntable, countBytes); v += countBytes;
-    memcpy(v, &plz.ncode, countBytes); v += countBytes;
-    memcpy(v, &plz.nsymbols, countBytes); v += countBytes;
-    memcpy(v, &plz.size_code_buff, countBytes);
-}
 
 void Widget::writeSettings() {
     if (!ui->lineEdit->text().isEmpty()) {
@@ -118,7 +97,7 @@ void Widget::writeSettings() {
 
 void Widget::readSettings() {
     QSettings settings("compressh.ini", QSettings::IniFormat);
-    path = settings.value("path", "").toString();
+    mPath = settings.value("path", "").toString();
 }
 
 void Widget::handleCompressResults(vec_int64 res_1, vec_double res_2) {
@@ -151,25 +130,25 @@ void Widget::progress(int percent) {
 }
 
 void Widget::on_btnSelectFile_clicked() {
-    QString str;
-    QDir dir(path);
-    str = QFileDialog::getOpenFileName(nullptr, "", dir.path(), "*.bin *.binz");
+    auto str = QFileDialog::getOpenFileName(this, "", QDir(mPath).path());
+    if (str.isEmpty())
+        return;
+
     ui->lineEdit->setText(str);
-    auto bin_z = str.contains(QRegExp(".binz$"));
-    auto bin = str.contains(QRegExp(".bin$"));
-    ui->btnDeCompress->setEnabled(bin_z);
-    ui->btnCompress->setEnabled(bin);
+    auto _decompress = str.contains(QRegExp(".lzw$"));
+    ui->btnDeCompress->setEnabled(_decompress);
+    ui->btnCompress->setEnabled(!_decompress);
 }
 
 void Widget::on_btnTest_clicked() {
     ui->textBrowser->clear();
     ui->textBrowser->append(QString("LZW test running..."));
 
-    auto sz = fillVector(in.data(), mBlockSize);
+    auto sz = fillVector(mIn.data(), mBlockSize);
 
-    copyByteVectorToString(sz, in.constData(), str);
+    copyByteVectorToString(sz, mIn.constData(), mStr);
     ui->textBrowser->append(QString("Input %1 bytes").arg(sz));
-    ui->textBrowser->append(str);
+    ui->textBrowser->append(mStr);
 
 
     auto ntable = static_cast<size_t>(ui->spinBoxNTable->value());
@@ -182,30 +161,33 @@ void Widget::on_btnTest_clicked() {
     auto n_repeat = static_cast<size_t>(ui->spinBox->value());
     auto sz_ = static_cast<size_t>(sz);
     for (size_t i=0; i<n_repeat; ++i)
-        Wr = lzmpw.compress(in.data(), sz_, out.data());
+        Wr = lzmpw.compress(mIn.data(), sz_, mOut.data());
     ui->textBrowser->append(QString("Compression time is %1 ms per line").arg(1. * tm.elapsed() / n_repeat));
 
-    copyByteVectorToString(Wr, out.constData(), str);
+    copyByteVectorToString(Wr, mOut.constData(), mStr);
     ui->textBrowser->append(QString("Compressor output: %1 bytes").arg(Wr));
-    ui->textBrowser->append(str);
+    ui->textBrowser->append(mStr);
 
-    Wr=lzmpw.decompress(out.data(), in_decod.data());
+    Wr=lzmpw.decompress(mOut.data(), mIn_decod.data());
 
-    copyByteVectorToString(Wr, in_decod.constData(), str);
+    copyByteVectorToString(Wr, mIn_decod.constData(), mStr);
     ui->textBrowser->append(QString("Decompressor output: %1 bytes").arg(Wr));
-    ui->textBrowser->append(str);
+    ui->textBrowser->append(mStr);
 
-    ui->textBrowser->append(QString("Memcmp() test is %1").arg(memcmp(in.data(), in_decod.data(), static_cast<size_t>(sz))));
+    ui->textBrowser->append(QString("Memcmp() test is %1").arg(memcmp(mIn.data(), mIn_decod.data(), static_cast<size_t>(sz))));
 }
 
 void Widget::on_btnCompress_clicked() {
-    bool write = ui->checkBoxWriteToFile->isChecked();
-    ui->textBrowser->clear();
-
     auto path = ui->lineEdit->text();
 
-    if (!QFile::exists(path))
+    if (!QFile::exists(path)) {
+        QMessageBox msg(QMessageBox::Information, QString("Нет файла"), QString("Целевой файл уже сжат."), QMessageBox::Ok, this);
+        msg.exec();
         return;
+    }
+
+    bool write = ui->checkBoxWriteToFile->isChecked();
+    ui->textBrowser->clear();
 
     auto n_table = static_cast<size_t>(ui->spinBoxNTable->value());
     auto n_code = static_cast<size_t>(ui->spinBoxNBits->value());
@@ -231,13 +213,15 @@ void Widget::on_btnCompress_clicked() {
 }
 
 void Widget::on_btnDeCompress_clicked() {
-    bool WRITE = ui->checkBoxWriteToFile->isChecked();
-    ui->textBrowser->clear();
-
     auto path = ui->lineEdit->text();
 
-    if (!QFile::exists(path))
+    if (!QFile::exists(path)) {
+        QMessageBox msg(QMessageBox::Information, QString("Нет файла"), QString("Целевой файл уже распакован."), QMessageBox::Ok, this);
+        msg.exec();
         return;
+    }
+    bool WRITE = ui->checkBoxWriteToFile->isChecked();
+    ui->textBrowser->clear();
 
     auto n_table = static_cast<size_t>(ui->spinBoxNTable->value());
     auto n_code = static_cast<size_t>(ui->spinBoxNBits->value());
@@ -286,7 +270,7 @@ void Widget::on_checkBoxAutoNBits_clicked() {
 void Widget::on_sbxBufferSize_valueChanged(int arg1) {
     mBlockSize = arg1;
 
-    in.resize(mBlockSize * 2);
-    out.resize(mBlockSize * 4);
-    in_decod.resize(mBlockSize * 2);
+    mIn.resize(mBlockSize * 2);
+    mOut.resize(mBlockSize * 4);
+    mIn_decod.resize(mBlockSize * 2);
 }
