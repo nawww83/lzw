@@ -56,16 +56,15 @@ private slots:
 
 private:
     Ui::Widget *ui;
+
+    void updateFilePath();
+
     int mBlockSize{4096}; // Размер блока непрерывно сжимаемых данных
     QVector<uchar> mIn;
     QVector<uchar> mOut;
     QVector<uchar> mIn_decod;
 
-    QString mStr;
     QString mPath;
-    double *mRatio;
-
-    int prevNT, prevNW, prevNB;
 };
 
 #endif // WIDGET_H

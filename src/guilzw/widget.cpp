@@ -29,6 +29,8 @@ Widget::Widget(QWidget *parent) :
 
     ui->sbxBufferSize->setValue(mBlockSize);
 
+    updateFilePath();
+
     qRegisterMetaType<vec_int64>("vec_int64");
     qRegisterMetaType<vec_int64>("vec_double");
 }
@@ -134,10 +136,8 @@ void Widget::on_btnSelectFile_clicked() {
     if (str.isEmpty())
         return;
 
-    ui->lineEdit->setText(str);
-    auto _decompress = str.contains(QRegExp(".lzw$"));
-    ui->btnDeCompress->setEnabled(_decompress);
-    ui->btnCompress->setEnabled(!_decompress);
+    mPath = str;
+    updateFilePath();
 }
 
 void Widget::on_btnTest_clicked() {
@@ -146,6 +146,7 @@ void Widget::on_btnTest_clicked() {
 
     auto sz = fillVector(mIn.data(), mBlockSize);
 
+    QString mStr;
     copyByteVectorToString(sz, mIn.constData(), mStr);
     ui->textBrowser->append(QString("Input %1 bytes").arg(sz));
     ui->textBrowser->append(mStr);
@@ -273,4 +274,11 @@ void Widget::on_sbxBufferSize_valueChanged(int arg1) {
     mIn.resize(mBlockSize * 2);
     mOut.resize(mBlockSize * 4);
     mIn_decod.resize(mBlockSize * 2);
+}
+
+void Widget::updateFilePath() {
+    ui->lineEdit->setText(mPath);
+    auto _decompress = mPath.contains(QRegExp(".lzw$"));
+    ui->btnDeCompress->setEnabled(_decompress);
+    ui->btnCompress->setEnabled(!_decompress);
 }
