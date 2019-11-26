@@ -15,7 +15,7 @@ public:
     int compress(uchar *in, size_t Ns, uchar *out);
     int decompress(uchar *in, uchar *out);
 
-    paramLZ getParamLZ();
+    paramLZ getParamLZ() const;
     
 private:
 

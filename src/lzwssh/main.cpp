@@ -190,10 +190,10 @@ string compress(const string& file, size_t header_size, double &ratio) {
 
     const size_t SZ_LZW_HD = 16;
     paramLZ plz = compander.getParamLZ();
-    fw.write( reinterpret_cast<char *>(&plz.ntable), 4);
-    fw.write( reinterpret_cast<char *>(&plz.ncode), 4);
-    fw.write( reinterpret_cast<char *>(&plz.nsymbols), 4);
-    fw.write( reinterpret_cast<char *>(&plz.size_code_buff), 4);
+    fw.write( reinterpret_cast<char *>(&plz), SZ_LZW_HD);
+//    fw.write( reinterpret_cast<char *>(&plz.ncode), 4);
+//    fw.write( reinterpret_cast<char *>(&plz.nsymbols), 4);
+//    fw.write( reinterpret_cast<char *>(&plz.size_code_buff), 4);
     all_writed += SZ_LZW_HD;
 
     const size_t SZ_AZ_NUM = 8;
@@ -229,7 +229,7 @@ string decompress(const string& file, size_t header_size) {
     static  uchar v_line_in[LEN_16K];
     static  uchar v_line_exp[LEN_8K];
     static  uchar v_line_mant[LEN_8K];
-    static uchar v_line_out[LEN_16K];
+    static  uchar v_line_out[LEN_16K];
 
     const string empty_str = "";
 
@@ -241,19 +241,18 @@ string decompress(const string& file, size_t header_size) {
         return empty_str;
     }
 
-//    char *header = new char[header_size];
-    FileHeader * fh = {};
-    fr.read( reinterpret_cast<char *>(fh), static_cast<int>(header_size));
-    fh->dataType = SRC; // change data type
-    fw.write( reinterpret_cast<char *>(fh), static_cast<int>(header_size));
-//    delete [] header;
+    char *header = new char[header_size];
+    fr.read(header, static_cast<int>(header_size));
+    header[49] = SRC; // change data type
+    fw.write(header, static_cast<int>(header_size));
+    delete [] header;
 
     paramLZ plz;
     const size_t SZ_LZW_HD = 16;
-    fr.read( reinterpret_cast<char *>(&plz.ntable), 4);
-    fr.read( reinterpret_cast<char *>(&plz.ncode), 4);
-    fr.read( reinterpret_cast<char *>(&plz.nsymbols), 4);
-    fr.read( reinterpret_cast<char *>(&plz.size_code_buff), 4);
+    fr.read(reinterpret_cast<char *>(&plz), SZ_LZW_HD);
+//    fr.read( reinterpret_cast<char *>(&plz.ncode), 4);
+//    fr.read( reinterpret_cast<char *>(&plz.nsymbols), 4);
+//    fr.read( reinterpret_cast<char *>(&plz.size_code_buff), 4);
 
     Lzw compander(plz.ntable, plz.ncode);
     paramLZ plz_reference = compander.getParamLZ();

@@ -101,10 +101,8 @@ size_t LzwPrivate::getSizeCodeBuff(size_t ncode) const {
     return sz / 8;
 }
 
-paramLZ LzwPrivate::getParamLZ() {
-    paramLZ p = {p.ntable = N_TABLE, p.nsymbols       = 0,
-                 p.ncode  = N_CODE,  p.size_code_buff = size_code_buff};
-    return p;
+paramLZ LzwPrivate::getParamLZ() const {
+    return {N_TABLE, N_CODE, 0, size_code_buff};
 }
 
 void LzwPrivate::flushBuffer(uchar *v) {
@@ -188,6 +186,6 @@ int Lzw::decompress(unsigned char *in, unsigned char *out) {
     return pLZW->decompress(in, out);
 }
 
-paramLZ Lzw::getParamLZ() {
+paramLZ Lzw::getParamLZ() const {
     return pLZW->getParamLZ();
 }

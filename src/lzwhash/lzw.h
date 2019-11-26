@@ -18,7 +18,7 @@ public:
     int compress(unsigned char *in, size_t Ns, unsigned char *out);
     int decompress(unsigned char *in, unsigned char *out);
 
-    paramLZ getParamLZ();
+    paramLZ getParamLZ() const;
 
 private:
     Internal::LzwPrivate *pLZW;
